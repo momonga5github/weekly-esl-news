@@ -1,0 +1,45 @@
+name: Auto Fetch News
+
+on:
+  schedule:
+    # 毎日 UTC 23:00 (日本時間 翌朝 8:00) に自動実行
+    - cron: '0 23 * * *'
+  workflow_dispatch: # GitHub管理画面から手動でいつでも即時実行できるボタンを有効化
+
+# GitHub ActionsサーバーにGitへの書き込み権限を与える
+permissions:
+  contents: write
+
+jobs:
+  update-news:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Fetch and translate news
+        run: npm run fetch-news
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add src/data/newsData.json
+          
+          # ニュースデータに変更（差分）がある場合のみコミットしてGitHubに送信する
+          if git diff --staged --quiet; then
+            echo "No changes in news data."
+          else
+            git commit -m "chore: auto fetch news data [skip ci]"
+            git push
+          fi
