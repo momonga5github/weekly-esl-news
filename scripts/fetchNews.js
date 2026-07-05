@@ -170,7 +170,7 @@ function extractRelatedNews(html) {
 }
 
 // 元記事のURLから本文を自動スクレイピングする関数
-async function scrapeArticleText(url) {
+async function scrapeArticleText(url, title = '', source = '') {
   try {
     const res = await fetch(url, {
       headers: {
@@ -201,24 +201,65 @@ async function scrapeArticleText(url) {
       .replace(/&quot;/g, '"')
       .replace(/&middot;/g, '・');
       
+    const cleanTitle = title ? title.replace(/\s+/g, '').toLowerCase() : '';
+    const cleanSource = source ? source.replace(/\s+/g, '').toLowerCase() : '';
+    const cleanBaseTitle = title ? getBaseTitle(title) : '';
+
     // 改行で分割して段落ごとにクリーンアップ
     const lines = text
       .split(/[\r\n]+/)
       .map(line => line.trim())
-      // 不要なナビゲーションや広告の文言、短すぎるゴミ行を排除（本文段落は通常25文字以上）
+      // 不要なナビゲーションや広告の文言、タイトル/ソース重複、短すぎるゴミ行を排除（本文段落は通常25文字以上）
       .filter(line => {
-        return line.length >= 25 && 
-               !line.includes('javascript') && 
-               !line.includes('Cookie') && 
-               !line.includes('会員登録') &&
-               !line.includes('ログイン') &&
-               !line.includes('著作権') &&
-               !line.includes('利用規約');
+        if (line.length < 25) return false;
+        
+        const cleanLine = line.replace(/\s+/g, '').toLowerCase();
+
+        // 1. タイトルまたはベースタイトルと行が完全に包含関係にある場合、H1やTitleタグの残骸として除外
+        if (cleanTitle && (cleanLine.includes(cleanTitle) || cleanTitle.includes(cleanLine))) {
+          return false;
+        }
+        if (cleanBaseTitle && cleanBaseTitle.length > 5 && (cleanLine.includes(cleanBaseTitle) || cleanBaseTitle.includes(cleanLine))) {
+          return false;
+        }
+
+        // 2. ソース名そのもの、またはソース名＋短い日付等の行を除外
+        if (cleanSource && (cleanLine === cleanSource || (cleanLine.includes(cleanSource) && cleanLine.length <= cleanSource.length + 15))) {
+          return false;
+        }
+
+        // 3. その他一般的なゴミキーワード・定型句・UIメッセージの除外
+        const blacklist = [
+          'javascript', 'cookie', '会員登録', 'ログイン', '著作権', '利用規約', 
+          'プライバシー', 'お気に入り', 'フォロー', 'シェア', 'ブックマーク', 
+          'ダウンロード', 'キーワード', 'メルマガ', '広告掲載', '記事掲載', 
+          'アクセスランキング', '関連記事', 'おすすめ', 'クレジットカード', 
+          'キャンペーン', '有料会員', '無料体験', '松井証券', 'sanyonews.jp',
+          'prtimes.jp', 'townnews.co.jp', 'businessfrontier', 'facebook', 
+          'twitter', 'instagram', 'threads', 'lineで送る', 'メールで送る'
+        ];
+        
+        for (const word of blacklist) {
+          if (cleanLine.includes(word)) return false;
+        }
+
+        return true;
       });
       
+    // 重複行の除外（同じ段落が複数回出現するのを防ぐ）
+    const seen = new Set();
+    const uniqueLines = [];
+    for (const line of lines) {
+      const norm = line.replace(/\s+/g, '').toLowerCase().substring(0, 30); // 最初の30文字で類似判定
+      if (!seen.has(norm)) {
+        seen.add(norm);
+        uniqueLines.push(line);
+      }
+    }
+
     // 本文と思われる段落の上位10行を抽出して2行改行で結合
-    if (lines.length > 0) {
-      return lines.slice(0, 10).join('\n\n');
+    if (uniqueLines.length > 0) {
+      return uniqueLines.slice(0, 10).join('\n\n');
     }
     return null;
   } catch (e) {
@@ -338,7 +379,7 @@ async function processRssItem(item, isGlobal) {
 
   // 1. 元記事の直URLから本文をスクレイピングする (10段落分取得)
   console.log(`🔍 本文取得中: "${title.substring(0, 20)}..."`);
-  let summary = await scrapeArticleText(realUrl);
+  let summary = await scrapeArticleText(realUrl, title, source);
   
   // スクレイピングに失敗した場合は、RSSのスニペットを代用する
   if (!summary) {
