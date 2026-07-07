@@ -189,8 +189,22 @@ async function scrapeArticleText(url, title = '', source = '') {
     html = html.replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '');
     html = html.replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '');
     
+    // 本文が格納されている主要エリアのみをHTMLから抽出して無関係なサイドバー・フッターを極力遮断する
+    let contentHtml = html;
+    const articleMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
+    if (articleMatch) {
+      contentHtml = articleMatch[1];
+    } else {
+      // 主要な本文クラス/IDのコンテナを検索
+      const commonBodyRegex = /<div[^>]*(?:class|id)=["'][^"']*(?:article-body|entry-content|main-content|post-content)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i;
+      const bodyMatch = html.match(commonBodyRegex);
+      if (bodyMatch) {
+        contentHtml = bodyMatch[1];
+      }
+    }
+    
     // HTMLタグを単純除去してプレーンテキストにする
-    let text = html.replace(/<[^>]+>/g, ' ');
+    let text = contentHtml.replace(/<[^>]+>/g, ' ');
     
     // 特殊文字のデコード
     text = text
@@ -205,46 +219,95 @@ async function scrapeArticleText(url, title = '', source = '') {
     const cleanSource = source ? source.replace(/\s+/g, '').toLowerCase() : '';
     const cleanBaseTitle = title ? getBaseTitle(title) : '';
 
+    const isJapanese = !isEnglishText(title || text.substring(0, 100));
+
     // 改行で分割して段落ごとにクリーンアップ
-    const lines = text
-      .split(/[\r\n]+/)
-      .map(line => line.trim())
-      // 不要なナビゲーションや広告の文言、タイトル/ソース重複、短すぎるゴミ行を排除（本文段落は通常25文字以上）
-      .filter(line => {
-        if (line.length < 25) return false;
-        
-        const cleanLine = line.replace(/\s+/g, '').toLowerCase();
+    const rawLines = text.split(/[\r\n]+/);
+    const lines = [];
 
-        // 1. タイトルまたはベースタイトルと行が完全に包含関係にある場合、H1やTitleタグの残骸として除外
-        if (cleanTitle && (cleanLine.includes(cleanTitle) || cleanTitle.includes(cleanLine))) {
-          return false;
+    // 早期ブレイク用ワード
+    const breakKeywords = [
+      '関連記事', '関連ニュース', 'あわせて読みたい', 'おすすめの記事',
+      'relatedarticles', 'relatednews', 'youmightalsolike', 'moreonthis',
+      '推奨記事', 'ニュースランキング', '最新のニュース', '他のニュース',
+      '新着ニュース', '週間アクセスランキング'
+    ];
+
+    for (let line of rawLines) {
+      line = line.trim();
+      if (line.length < 25) continue;
+
+      const cleanLine = line.replace(/\s+/g, '').toLowerCase();
+
+      // 早期ブレイク判定：関連記事セクションが始まったらそれ以降は処理しない
+      let shouldBreak = false;
+      for (const breakWord of breakKeywords) {
+        if (cleanLine.includes(breakWord)) {
+          shouldBreak = true;
+          break;
         }
-        if (cleanBaseTitle && cleanBaseTitle.length > 5 && (cleanLine.includes(cleanBaseTitle) || cleanBaseTitle.includes(cleanLine))) {
-          return false;
+      }
+      if (shouldBreak) {
+        console.log(`   └ 🛑 関連記事・最新ニュースセクション検知のためスクレイピングを打ち切ります: "${line.substring(0, 20)}..."`);
+        break;
+      }
+
+      if (isJapanese) {
+        // 全角スペースで区切られており、かつ句点「。」で終わっていない場合
+        // （「相模台　「狭い」歩道を拡幅へ　米軍住宅地区の一部「共同使用」」のような見出しリンクを完全に弾く）
+        if ((line.includes('　') || line.includes('  ')) && !line.endsWith('。')) {
+          continue; // 除外
         }
 
-        // 2. ソース名そのもの、またはソース名＋短い日付等の行を除外
-        if (cleanSource && (cleanLine === cleanSource || (cleanLine.includes(cleanSource) && cleanLine.length <= cleanSource.length + 15))) {
-          return false;
+        // 通常の文末表現（句点「。」）で終わっていない行のチェック
+        const hasNormalEnding = /[\u3002\u3093たっだすい]$/.test(line);
+        if (!hasNormalEnding) {
+          // 末尾が「へ」「で」「！」「開幕」「開催」「募集」「ニュース」「選定」「開始」などで終わる体言止めのニュース見出しらしきもの
+          if (/(?:へ|で|！|開幕|開催|募集|予定|決定|選定|開始|終了|ニュース|一覧|目撃|開放|サポート|最多|カフェ|に|が)$/.test(line)) {
+            continue; // 除外
+          }
         }
+      }
 
-        // 3. その他一般的なゴミキーワード・定型句・UIメッセージの除外
-        const blacklist = [
-          'javascript', 'cookie', '会員登録', 'ログイン', '著作権', '利用規約', 
-          'プライバシー', 'お気に入り', 'フォロー', 'シェア', 'ブックマーク', 
-          'ダウンロード', 'キーワード', 'メルマガ', '広告掲載', '記事掲載', 
-          'アクセスランキング', '関連記事', 'おすすめ', 'クレジットカード', 
-          'キャンペーン', '有料会員', '無料体験', '松井証券', 'sanyonews.jp',
-          'prtimes.jp', 'townnews.co.jp', 'businessfrontier', 'facebook', 
-          'twitter', 'instagram', 'threads', 'lineで送る', 'メールで送る'
-        ];
-        
-        for (const word of blacklist) {
-          if (cleanLine.includes(word)) return false;
+      // 1. タイトルまたはベースタイトルと行が完全に包含関係にある場合、H1やTitleタグの残骸として除外
+      if (cleanTitle && (cleanLine.includes(cleanTitle) || cleanTitle.includes(cleanLine))) {
+        continue;
+      }
+      if (cleanBaseTitle && cleanBaseTitle.length > 5 && (cleanLine.includes(cleanBaseTitle) || cleanBaseTitle.includes(cleanLine))) {
+        continue;
+      }
+
+      // 2. ソース名そのもの、またはソース名＋短い日付等の行を除外
+      if (cleanSource && (cleanLine === cleanSource || (cleanLine.includes(cleanSource) && cleanLine.length <= cleanSource.length + 15))) {
+        continue;
+      }
+
+
+
+      // 4. その他一般的なゴミキーワード・定型句・UIメッセージの除外
+      const blacklist = [
+        'javascript', 'cookie', '会員登録', 'ログイン', '著作権', '利用規約', 
+        'プライバシー', 'お気に入り', 'フォロー', 'シェア', 'ブックマーク', 
+        'ダウンロード', 'キーワード', 'メルマガ', '広告掲載', '記事掲載', 
+        'アクセスランキング', 'おすすめ', 'クレジットカード', 
+        'キャンペーン', '有料会員', '無料体験', '松井証琴', '松井証券', 'sanyonews.jp',
+        'prtimes.jp', 'townnews.co.jp', 'businessfrontier', 'facebook', 
+        'twitter', 'instagram', 'threads', 'lineで送る', 'メールで送る',
+        'この記事は会員限定です', 'この記事をお気に入りに追加する',
+        'その他のニュース', '新着ニュース', '週間アクセスランキング'
+      ];
+      
+      let isBlacklisted = false;
+      for (const word of blacklist) {
+        if (cleanLine.includes(word)) {
+          isBlacklisted = true;
+          break;
         }
+      }
+      if (isBlacklisted) continue;
 
-        return true;
-      });
+      lines.push(line);
+    }
       
     // 重複行の除外（同じ段落が複数回出現するのを防ぐ）
     const seen = new Set();
