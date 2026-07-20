@@ -18,20 +18,46 @@ const dataFilePath = path.join(__dirname, '../src/data/newsData.json');
 const DOMESTIC_RSS_URL = 'https://news.google.com/rss/search?q=(%E9%9B%BB%E5%AD%90%E6%A3%9A%E6%9C%AD+OR+%22%E3%83%87%E3%82%B8%E3%82%BF%E3%83%AB%E3%82%B5%E3%82%A4%E3%83%8D%E3%83%BC%E3%82%B8%22+OR+%22%E3%83%AA%E3%83%86%E3%83%BC%E3%83%AB%E3%83%A1%E3%83%87%E3%82%A3%E3%82%A2%22)&hl=ja&gl=JP&ceid=JP:ja';
 const GLOBAL_RSS_URL = 'https://news.google.com/rss/search?q=(%22Electronic+Shelf+Label%22+OR+%22Digital+Signage%22+OR+%22Retail+Media%22)&hl=en-US&gl=US&ceid=US:en';
 
+// HTML文字参照（10進数・16進数・実体参照）を完全にアンエスケープ（デコード）する関数
+function decodeHTMLEntities(text) {
+  if (!text) return '';
+  return text
+    // 10進数数値文字参照 (&#8221; &#8220; &#xff08; 等)
+    .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec))
+    // 16進数数値文字参照 (&#x201d; 等)
+    .replace(/&#x([0-9a-f]+);/gi, (match, hex) => {
+      const code = parseInt(hex, 16);
+      return isNaN(code) ? match : String.fromCharCode(code);
+    })
+    // 一般的な実体参照
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&middot;/g, '・')
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–');
+}
+
 // Google 翻訳 API (無料Webエンドポイント)
 async function translateText(text) {
   if (!text || text.trim() === '') return '';
+  const decoded = decodeHTMLEntities(text);
   try {
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ja&dt=t&q=${encodeURIComponent(text)}`;
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ja&dt=t&q=${encodeURIComponent(decoded)}`;
     const res = await fetch(url);
     const json = await res.json();
     if (json && json[0]) {
-      return json[0].map(item => item[0]).join('');
+      const translated = json[0].map(item => item[0]).join('');
+      return decodeHTMLEntities(translated);
     }
-    return text;
+    return decoded;
   } catch (e) {
     console.error('⚠️ 翻訳エラー:', e);
-    return text;
+    return decoded;
   }
 }
 
@@ -42,7 +68,8 @@ function isEnglishText(text) {
 
 // 比較用にタイトルから括弧や地名、メディア名、記号を排した「ベースタイトル」を生成する
 function getBaseTitle(title) {
-  return title
+  const decoded = decodeHTMLEntities(title);
+  return decoded
     .replace(/【[^】]*】/g, '')
     .replace(/（[^）]*）/g, '')
     .replace(/\([^)]*\)/g, '')
@@ -55,11 +82,43 @@ function getBaseTitle(title) {
     .toLowerCase();
 }
 
+// 要約の冒頭段落から、記事タイトルやベースタイトルと重複・酷似している部分を完全除去する関数
+function stripDuplicateTitleFromSummary(summary, title) {
+  if (!summary || !title) return summary;
+  
+  const decodedTitle = decodeHTMLEntities(title);
+  const normTitle = decodedTitle.replace(/[^a-zA-Z0-9\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/g, '').toLowerCase();
+  const baseTitle = getBaseTitle(decodedTitle);
+
+  let paragraphs = summary.split('\n\n').map(p => p.trim()).filter(Boolean);
+  
+  let removedCount = 0;
+  while (paragraphs.length > 1 && removedCount < 3) {
+    const firstP = paragraphs[0];
+    const decodedP = decodeHTMLEntities(firstP);
+    const normP = decodedP.replace(/[^a-zA-Z0-9\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/g, '').toLowerCase();
+
+    // 先頭段落がタイトルの主要部を含んでいるか、または先頭段落がタイトルそのものであるか判定
+    const isTitleDup = (normTitle.length >= 8 && normP.includes(normTitle.substring(0, 10))) ||
+                       (baseTitle.length >= 6 && normP.includes(baseTitle.substring(0, 8))) ||
+                       (normTitle.length >= 8 && normTitle.includes(normP.substring(0, 10)));
+
+    if (isTitleDup) {
+      console.log(`   └ 🧹 冒頭のタイトル重複段落を除去しました: "${firstP.substring(0, 25)}..."`);
+      paragraphs.shift();
+      removedCount++;
+    } else {
+      break;
+    }
+  }
+
+  return paragraphs.join('\n\n');
+}
+
 // 国内・海外ニュースをスマートに分類する判定ロジック
 function isStoryGlobal(item, source, title) {
   const s = source.toLowerCase();
   const t = title.toLowerCase();
-  const link = item.link || '';
   
   const hasJapanese = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(title);
   
@@ -121,15 +180,16 @@ function estimateCategory(title, defaultCategory) {
   return defaultCategory;
 }
 
-// タイトルとソースを切り分けるロジック
+// タイトルとソースを切り分けるロジック（デコード適用）
 function cleanTitleAndSource(rawTitle) {
-  const lastDashIndex = rawTitle.lastIndexOf(' - ');
+  const decodedRaw = decodeHTMLEntities(rawTitle || '');
+  const lastDashIndex = decodedRaw.lastIndexOf(' - ');
   if (lastDashIndex !== -1) {
-    const title = rawTitle.substring(0, lastDashIndex).trim();
-    const source = rawTitle.substring(lastDashIndex + 3).trim();
+    const title = decodeHTMLEntities(decodedRaw.substring(0, lastDashIndex).trim());
+    const source = decodeHTMLEntities(decodedRaw.substring(lastDashIndex + 3).trim());
     return { title, source };
   }
-  return { title: rawTitle, source: 'Google News' };
+  return { title: decodedRaw, source: 'Google News' };
 }
 
 // 記事公開日から属する週の期間を計算する
@@ -160,8 +220,8 @@ function extractRelatedNews(html) {
   const regex = /<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>(?:&nbsp;)*\s*<font[^>]*color="#6f6f6f"[^>]*>([^<]+)<\/font>/gi;
   let match;
   while ((match = regex.exec(html)) !== null) {
-    const title = match[2].trim();
-    const source = match[3].trim();
+    const title = decodeHTMLEntities(match[2].trim());
+    const source = decodeHTMLEntities(match[3].trim());
     if (title && source) {
       related.push(`- ${title} （ソース: ${source}）`);
     }
@@ -195,7 +255,6 @@ async function scrapeArticleText(url, title = '', source = '') {
     if (articleMatch) {
       contentHtml = articleMatch[1];
     } else {
-      // 主要な本文クラス/IDのコンテナを検索
       const commonBodyRegex = /<div[^>]*(?:class|id)=["'][^"']*(?:article-body|entry-content|main-content|post-content)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i;
       const bodyMatch = html.match(commonBodyRegex);
       if (bodyMatch) {
@@ -203,17 +262,8 @@ async function scrapeArticleText(url, title = '', source = '') {
       }
     }
     
-    // HTMLタグを単純除去してプレーンテキストにする
-    let text = contentHtml.replace(/<[^>]+>/g, ' ');
-    
-    // 特殊文字のデコード
-    text = text
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&gt;/g, '>')
-      .replace(/&lt;/g, '<')
-      .replace(/&amp;/g, '&')
-      .replace(/&quot;/g, '"')
-      .replace(/&middot;/g, '・');
+    // HTMLタグを除去し、HTML文字参照を完全にアンエスケープ
+    let text = decodeHTMLEntities(contentHtml.replace(/<[^>]+>/g, ' '));
       
     const cleanTitle = title ? title.replace(/\s+/g, '').toLowerCase() : '';
     const cleanSource = source ? source.replace(/\s+/g, '').toLowerCase() : '';
@@ -248,49 +298,46 @@ async function scrapeArticleText(url, title = '', source = '') {
         }
       }
       if (shouldBreak) {
-        console.log(`   └ 🛑 関連記事・最新ニュースセクション検知のためスクレイピングを打ち切ります: "${line.substring(0, 20)}..."`);
         break;
       }
 
       if (isJapanese) {
         // 全角スペースで区切られており、かつ句点「。」で終わっていない場合
-        // （「相模台　「狭い」歩道を拡幅へ　米軍住宅地区の一部「共同使用」」のような見出しリンクを完全に弾く）
         if ((line.includes('　') || line.includes('  ')) && !line.endsWith('。')) {
-          continue; // 除外
+          continue;
         }
 
         // 通常の文末表現（句点「。」）で終わっていない行のチェック
         const hasNormalEnding = /[\u3002\u3093たっだすい]$/.test(line);
         if (!hasNormalEnding) {
-          // 末尾が「へ」「で」「！」「開幕」「開催」「募集」「ニュース」「選定」「開始」などで終わる体言止めのニュース見出しらしきもの
           if (/(?:へ|で|！|開幕|開催|募集|予定|決定|選定|開始|終了|ニュース|一覧|目撃|開放|サポート|最多|カフェ|に|が)$/.test(line)) {
-            continue; // 除外
+            continue;
           }
         }
       }
 
-      // 1. タイトルまたはベースタイトルと行が完全に包含関係にある場合、H1やTitleタグの残骸として除外
-      if (cleanTitle && (cleanLine.includes(cleanTitle) || cleanTitle.includes(cleanLine))) {
+      // タイトル・ベースタイトルとの類似チェック（大文字小文字・記号無視）
+      const normLine = cleanLine.replace(/[^a-zA-Z0-9\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/g, '');
+      const normTitle = cleanTitle.replace(/[^a-zA-Z0-9\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/g, '');
+      if (normTitle && normTitle.length > 5 && (normLine.includes(normTitle.substring(0, 10)) || normTitle.includes(normLine.substring(0, 10)))) {
         continue;
       }
-      if (cleanBaseTitle && cleanBaseTitle.length > 5 && (cleanLine.includes(cleanBaseTitle) || cleanBaseTitle.includes(cleanLine))) {
+      if (cleanBaseTitle && cleanBaseTitle.length > 5 && normLine.includes(cleanBaseTitle.substring(0, 8))) {
         continue;
       }
 
-      // 2. ソース名そのもの、またはソース名＋短い日付等の行を除外
+      // ソース名そのもの、またはソース名＋短い日付等の行を除外
       if (cleanSource && (cleanLine === cleanSource || (cleanLine.includes(cleanSource) && cleanLine.length <= cleanSource.length + 15))) {
         continue;
       }
 
-
-
-      // 4. その他一般的なゴミキーワード・定型句・UIメッセージの除外
+      // ゴミキーワード除外
       const blacklist = [
         'javascript', 'cookie', '会員登録', 'ログイン', '著作権', '利用規約', 
         'プライバシー', 'お気に入り', 'フォロー', 'シェア', 'ブックマーク', 
         'ダウンロード', 'キーワード', 'メルマガ', '広告掲載', '記事掲載', 
         'アクセスランキング', 'おすすめ', 'クレジットカード', 
-        'キャンペーン', '有料会員', '無料体験', '松井証琴', '松井証券', 'sanyonews.jp',
+        'キャンペーン', '有料会員', '無料体験', '松井証券', 'sanyonews.jp',
         'prtimes.jp', 'townnews.co.jp', 'businessfrontier', 'facebook', 
         'twitter', 'instagram', 'threads', 'lineで送る', 'メールで送る',
         'この記事は会員限定です', 'この記事をお気に入りに追加する',
@@ -309,18 +356,17 @@ async function scrapeArticleText(url, title = '', source = '') {
       lines.push(line);
     }
       
-    // 重複行の除外（同じ段落が複数回出現するのを防ぐ）
+    // 重複行の除外
     const seen = new Set();
     const uniqueLines = [];
     for (const line of lines) {
-      const norm = line.replace(/\s+/g, '').toLowerCase().substring(0, 30); // 最初の30文字で類似判定
+      const norm = line.replace(/\s+/g, '').toLowerCase().substring(0, 30);
       if (!seen.has(norm)) {
         seen.add(norm);
         uniqueLines.push(line);
       }
     }
 
-    // 本文と思われる段落の上位10行を抽出して2行改行で結合
     if (uniqueLines.length > 0) {
       return uniqueLines.slice(0, 10).join('\n\n');
     }
@@ -333,14 +379,15 @@ async function scrapeArticleText(url, title = '', source = '') {
 
 // ニュース要約と類似報道リストからcontentフィールドを組み立てる
 function generateRichContent(title, summary, relatedNewsList) {
-  const intro = `【ニュースの要約】\n${summary}`;
+  // 冒頭からタイトルの重複段落を削る
+  const cleanSummary = stripDuplicateTitleFromSummary(summary, title);
+  const intro = `【ニュースの要約】\n${cleanSummary}`;
   
   let relatedSection = '';
   if (relatedNewsList && relatedNewsList.length > 0) {
-    const cleanTitle = title.replace(/\s+/g, '').toLowerCase();
+    const cleanTitle = decodeHTMLEntities(title).replace(/\s+/g, '').toLowerCase();
     const filteredList = relatedNewsList.filter(item => {
-      // オブジェクトのタイトル部分をフィルタリング対象にする
-      const cleanItem = item.title.replace(/\s+/g, '').toLowerCase();
+      const cleanItem = decodeHTMLEntities(item.title).replace(/\s+/g, '').toLowerCase();
       return !cleanItem.includes(cleanTitle) && !cleanTitle.includes(cleanItem.substring(0, 15));
     });
 
@@ -388,7 +435,7 @@ function groupAndMergeStories(rawStories) {
         });
       }
 
-      // 要約文をマージする（すでに十分な文字数がある場合はスキップ）
+      // 要約文をマージする
       if (foundGroup.summaryRaw.length < 300 && story.summaryRaw && story.summaryRaw !== '要約は元の記事をご参照ください。') {
         const cleanSummary = story.summaryRaw.replace(/\s+/g, '');
         if (!foundGroup.summaryRaw.replace(/\s+/g, '').includes(cleanSummary.substring(0, 15))) {
@@ -402,6 +449,8 @@ function groupAndMergeStories(rawStories) {
   }
 
   for (const g of grouped) {
+    // 冒頭のタイトル重複を削った上でリッチコンテンツ化
+    g.summaryRaw = stripDuplicateTitleFromSummary(g.summaryRaw, g.title);
     g.content = generateRichContent(g.title, g.summaryRaw, g.relatedNews);
     
     // 一覧用スニペット
@@ -440,14 +489,13 @@ async function processRssItem(item, isGlobal) {
     }
   }
 
-  // 1. 元記事の直URLから本文をスクレイピングする (10段落分取得)
+  // 1. 元記事の直URLから本文をスクレイピングする
   console.log(`🔍 本文取得中: "${title.substring(0, 20)}..."`);
   let summary = await scrapeArticleText(realUrl, title, source);
   
-  // スクレイピングに失敗した場合は、RSSのスニペットを代用する
   if (!summary) {
     console.log(`   └ ⚠️ 本文スクレイピング不可。RSSスニペットで代替します。`);
-    summary = item.contentSnippet || '要約は元の記事をご参照ください。';
+    summary = decodeHTMLEntities(item.contentSnippet || '要約は元の記事をご参照ください。');
   } else {
     console.log(`   └ ✅ スクレイピング成功 (${summary.split('\n\n').length}段落取得)`);
   }
@@ -462,20 +510,17 @@ async function processRssItem(item, isGlobal) {
     title = await translateText(title);
     source = await translateText(source);
     
-    // 長文の本文は、段落ごとに個別に翻訳して結合（無料APIの容量制限エラーを回避）
     const paragraphs = summary.split('\n\n');
     const translatedParagraphs = [];
     for (const p of paragraphs) {
       if (p.trim() !== '') {
         const trans = await translateText(p);
         translatedParagraphs.push(trans);
-        // 短いディレイを入れてアクセスブロックを回避
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 150));
       }
     }
     summary = translatedParagraphs.join('\n\n');
     
-    // 類似報道もそれぞれ翻訳
     if (relatedNewsList.length > 0) {
       for (let i = 0; i < relatedNewsList.length; i++) {
         relatedNewsList[i] = await translateText(relatedNewsList[i]);
@@ -485,26 +530,29 @@ async function processRssItem(item, isGlobal) {
     console.log(`   └ 翻訳後: "${title.substring(0, 30)}..."`);
   }
 
+  // 最後に要約からタイトルの冒頭重複を除去
+  summary = stripDuplicateTitleFromSummary(summary, title);
+
   const id = (isGlobal ? 'g-' : 'd-') + Buffer.from(realUrl || title).toString('base64').substring(0, 12).replace(/[^a-zA-Z0-9]/g, '');
 
   return {
     weekRangeKey,
     story: {
       id,
-      title,
-      titleEn,
-      summaryRaw: summary, // マージ用の生本文テキスト
+      title: decodeHTMLEntities(title),
+      titleEn: decodeHTMLEntities(titleEn),
+      summaryRaw: summary,
       category,
-      source,
+      source: decodeHTMLEntities(source),
       readTime: '3分で読める',
-      link: realUrl, // 元記事の直URLを保存
+      link: realUrl,
       publishDate: formattedPublishDate
     }
   };
 }
 
 async function fetchNews() {
-  console.log('🔄 週刊 ESL & Retail Media ニュース用のデータを自動収集・翻訳しています（デコーダー＆スクレイピング稼働）...');
+  console.log('🔄 週刊 ESL & Retail Media ニュース用のデータを自動収集・翻訳しています...');
 
   let existingData = {};
   if (fs.existsSync(dataFilePath)) {
@@ -526,7 +574,6 @@ async function fetchNews() {
     return { items: [] };
   });
 
-  // レート制限やAPIブロックを防ぐため、最新の15件ずつに制限して処理（スクレイピング時間の増加に伴い枠を安全側に設定）
   const domesticItems = domesticFeed.items.slice(0, 15);
   const globalItems = globalFeed.items.slice(0, 15);
 
@@ -549,10 +596,10 @@ async function fetchNews() {
     
     if (isGlobal) {
       newRawData[weekRangeKey].global.push(story);
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 500));
     } else {
       newRawData[weekRangeKey].domestic.push(story);
-      await new Promise(resolve => setTimeout(resolve, 400));
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
   }
 
@@ -571,10 +618,10 @@ async function fetchNews() {
     
     if (isGlobal) {
       newRawData[weekRangeKey].global.push(story);
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 500));
     } else {
       newRawData[weekRangeKey].domestic.push(story);
-      await new Promise(resolve => setTimeout(resolve, 400));
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
   }
 
@@ -585,7 +632,6 @@ async function fetchNews() {
       existingData[weekKey] = { domestic: [], global: [] };
     }
 
-    // 国内ニュースのグループ化とマージ
     const processedDomestic = groupAndMergeStories(newRawData[weekKey].domestic);
     for (const story of processedDomestic) {
       const baseTitle = getBaseTitle(story.title);
@@ -596,7 +642,6 @@ async function fetchNews() {
       }
     }
 
-    // 海外ニュースのグループ化とマージ
     const processedGlobal = groupAndMergeStories(newRawData[weekKey].global);
     for (const story of processedGlobal) {
       const baseTitle = getBaseTitle(story.title);
@@ -616,12 +661,22 @@ async function fetchNews() {
     }
   });
 
+  // 保持する週数を最大8週分に制限し、古いアーカイブを自動削除して軽量化・高速化
+  const sortedWeekKeys = Object.keys(existingData).sort().reverse();
+  if (sortedWeekKeys.length > 8) {
+    const removeKeys = sortedWeekKeys.slice(8);
+    for (const key of removeKeys) {
+      delete existingData[key];
+    }
+    console.log(`🧹 古いニュースアーカイブ（${removeKeys.length}週分）を整理し、最新8週分に軽量化しました。`);
+  }
+
   // 保存
   fs.mkdirSync(path.dirname(dataFilePath), { recursive: true });
   fs.writeFileSync(dataFilePath, JSON.stringify(existingData, null, 2), 'utf-8');
 
-  console.log(`✅ 週刊ニュースの収集・翻訳・グループ化マージが完了しました。`);
-  console.log(`🆕 新規登録（マージ後）代表記事数: ${addedCount}件`);
+  console.log(`✅ 週刊ニュースの自動収集・翻訳・グループ化マージが完了しました。`);
+  console.log(`🆕 新規登録代表記事数: ${addedCount}件`);
   console.log(`📁 保存先: ${dataFilePath}`);
 }
 
