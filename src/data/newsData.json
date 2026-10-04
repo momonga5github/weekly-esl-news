@@ -5580,6 +5580,19 @@
         "relatedNews": [],
         "content": "【ニュースの要約】\nReturn on advertising spend is a useful performance metric, but only with accurate attribution.\n\nROAS connects advertising investment to revenue. The calculation is simple:\n\nROAS = (Sales Attributed to Ads) / (Cost of Ads)\n\nThe  result  can help marketers compare campaigns and allocate budgets.\n\nROAS’s usefulness depends on the accuracy of its attribution.\n\n※この記事は外部のニュースメディアから自動取得・整理されたものです。詳細な導入店舗数、投資対効果（ROI）、検証数値、売場画像などの全文は、以下の「元の記事を読む」ボタンから掲載元ソース of サイトにアクセスしてご確認ください。",
         "summary": "Return on advertising spend is a useful performance metric, but only with accurate attribution.\n\nROAS connects advertising investment to revenue. The ..."
+      },
+      {
+        "id": "g-aHR0cHM6Ly93",
+        "title": "Matthew Fantazier Unpacks Retail Media’s First On-Site to Off-Site Partnership",
+        "titleEn": "Matthew Fantazier Unpacks Retail Media’s First On-Site to Off-Site Partnership",
+        "category": "リテールメディア",
+        "source": "The Trade Desk",
+        "readTime": "3分で読める",
+        "link": "https://www.thetradedesk.com/press-room/matthew-fantazier-unpacks-retail-medias-first-on-site-to-off-site-partnership",
+        "publishDate": "2026年9月23日",
+        "relatedNews": [],
+        "content": "【ニュースの要約】\nrule.exactMatch ? path.startsWith(rule.path) : rule.path === path);\n\nif ((alertEnabled || siteMismatch) && !bannerDismissed) {\n\nbannerElem = $refs.banner;\n\nbannerElemHeight = bannerElem.getBoundingClientRect().height;\n\nlet header = $refs.header\n\nlet headroom = new Headroom(header, headroomOptions);\n\n$watch('menuOpen', (value) => { value ? document.body.classList.add('max-lg:overflow-hidden') : document.body.classList.remove('max-lg:overflow-hidden') });\n\n@resize.throttle.25.window=\"() => {\n\nclass=\"flex min-h-screen flex-col\"\n\n'--banner-elem-height': `${bannerElemHeight}px`,\n\n※この記事は外部のニュースメディアから自動取得・整理されたものです。詳細な導入店舗数、投資対効果（ROI）、検証数値、売場画像などの全文は、以下の「元の記事を読む」ボタンから掲載元ソース of サイトにアクセスしてご確認ください。",
+        "summary": "rule.exactMatch ? path.startsWith(rule.path) : rule.path === path);\n\nif ((alertEnabled || siteMismatch) && !bannerDismissed) {\n\nbannerElem = $refs.ban..."
       }
     ]
   },
@@ -5935,6 +5948,19 @@
         "relatedNews": [],
         "content": "【ニュースの要約】\n3年連続の開催となる本年は『Beyond Marketing and Commerce -購買行動の変化は、マーケティングと顧客体験の進化へ-』をテーマに掲げ、大手小売企業やグローバルメーカーのブランド責任者、業界キーマンが続々と登壇。現場の課題解決に直結する最新事例や、今、取り組むべきマーケティング戦略について徹底議論いたします。\n\n※セッション構成等の状況により、時間は変更になる場合がございます。\n\nご来場登録フォーム： https://biz.q-pass.jp/f/13504/retailmedia-japan2026  ※当イベントへのご参加は事前登録制（入場無料・定員制）となります。ご来場を希望される方は、ご来場登録フォームよりお申し込みください。\n\nhttps://www.retailmedia-japan.com/#program\n\n※セッション内容および登壇者は予告なく変更になる場合がございます。\n\n公式Webサイト： https://www.retailmedia-japan.com/archive/2024/\n\n開催テーマ：「Beyond Borders：- リテールメディアは、高度拡張と市場拡大のフェーズへ - 」\n\nhttps://docs.google.com/forms/d/e/1FAIpQLSdfRUMg6fOJQHe_4niGA99Aj2J1Oa-gwB8oN2LqBxKRRhWf4A/viewform\n\n本社所在地：京都府京都市下京区新町通四条下る四条町347-1 CUBE西烏丸7F\n\n事業内容：流通小売DX支援 / リテールメディア開発・運用 / O2O・OMOmarketing\n\n※この記事は外部のニュースメディアから自動取得・整理されたものです。詳細な導入店舗数、投資対効果（ROI）、検証数値、売場画像などの全文は、以下の「元の記事を読む」ボタンから掲載元ソース of サイトにアクセスしてご確認ください。",
         "summary": "3年連続の開催となる本年は『Beyond Marketing and Commerce -購買行動の変化は、マーケティングと顧客体験の進化へ-』をテーマに掲げ、大手小売企業やグローバルメーカーのブランド責任者、業界キーマンが続々と登壇。現場の課題解決に直結する最新事例や、今、取り組むべきマーケティン..."
+      },
+      {
+        "id": "d-aHR0cHM6Ly9k",
+        "title": "トライアルHD・スギ薬局、リテールメディア研究会「TOKYO Retail Media Federation」を発足",
+        "titleEn": "",
+        "category": "リテールメディア",
+        "source": "ダイヤモンド・チェーンストアオンライン",
+        "readTime": "3分で読める",
+        "link": "https://diamond-rm.net/flash_news/559768/",
+        "publishDate": "2026年10月4日",
+        "relatedNews": [],
+        "content": "【ニュースの要約】\n（画像）トライアルホールディングス・ニュースリリースより\n\nトライアルホールディングス（福岡県）とスギ薬局（愛知県）は、両社が掲げる戦略的協業の一環として、小売企業横断のリテールメディアネットワークの構築、効果検証方法の確立、共通指標の策定を研究する「TOKYO Retail Media Federation（東京リテールメディア研究会）」を発足したと9月30日に発表した。\n\nリテールメディアは、購買に近い場所で生活者へ情報を届け、広告接触と購買行動を結び付けて検証できるメディアとして活用が広がっている。一方、小売企業ごとに媒体、販売方法、効果指標が異なるため、複数の小売企業を横断した広告展開や効果比較には課題が残っている。\n\n両社は東京・首都圏を中心に、リテール各社のメディア（サイネージ、アプリ広告、店内放送など）を横断活用することで、リテールメディアのメディアパワーの実証・検証を行ってきた。これまでのリテール横断でのPoC（概念実証）を通じて、横断的なリテールメディア活用の有効性が確認されたため、研究会の設立に至った。\n\n従来の単体流通ごとの「販促費」ではなく、小売企業（2社の売上高合計2.3兆円規模）横断のリテールメディアネットワークを構築することにより、「広告・マーケティングの在り方」を変革することを目指す。\n\n研究会の発足に先立ち、5月4日から5月31日まで、東京都、埼玉県、神奈川県、千葉県のスギ薬局、西友、トライアル計401店舗を対象に、サイネージおよび店内放送を横断して展開するPoCを実施した。\n\nその結果、人流データを基に算出した4週間の重複除外後の推計ユニーク来店者数は約685万人となり、700万人規模の生活者へ接触できる可能性を確認した。また、両グループの顧客層の重複が少なく、メディアを横断することでリーチの重複を抑えながら接触可能な生活者を広げられることが示された。\n\n※この記事は外部のニュースメディアから自動取得・整理されたものです。詳細な導入店舗数、投資対効果（ROI）、検証数値、売場画像などの全文は、以下の「元の記事を読む」ボタンから掲載元ソース of サイトにアクセスしてご確認ください。",
+        "summary": "（画像）トライアルホールディングス・ニュースリリースより\n\nトライアルホールディングス（福岡県）とスギ薬局（愛知県）は、両社が掲げる戦略的協業の一環として、小売企業横断のリテールメディアネットワークの構築、効果検証方法の確立、共通指標の策定を研究する「TOKYO Retail Media Feder..."
       }
     ],
     "global": [
@@ -6340,6 +6366,19 @@
         "relatedNews": [],
         "content": "【ニュースの要約】\nInternational  3 Oct 2026      Latin America campaigners unveil model ‘ecocide’ law\n\n※この記事は外部のニュースメディアから自動取得・整理されたものです。詳細な導入店舗数、投資対効果（ROI）、検証数値、売場画像などの全文は、以下の「元の記事を読む」ボタンから掲載元ソース of サイトにアクセスしてご確認ください。",
         "summary": "International  3 Oct 2026      Latin America campaigners unveil model ‘ecocide’ law"
+      },
+      {
+        "id": "g-aHR0cHM6Ly93",
+        "title": "How McDonald’s is rewriting the retail media menu",
+        "titleEn": "How McDonald’s is rewriting the retail media menu",
+        "category": "リテールメディア",
+        "source": "Marketing-Interactive",
+        "readTime": "3分で読める",
+        "link": "https://www.marketing-interactive.com/how-mcdonald-s-is-rewriting-the-retail-media-menu",
+        "publishDate": "2026年10月1日",
+        "relatedNews": [],
+        "content": "【ニュースの要約】\ndata-main-id-param=\"button-top\"\n\naria-controls=\"top-share-social-list\"\n\nmain#clickOutsideShareSocial\"\n\nmain#clickShareSocial\">email\n\nmain#clickShareSocial\">telegram\n\nmain#clickShareSocial\">whatsapp\n\nmain#clickShareSocial\">wechat\n\nmain#clickShareSocial\">pinterest\n\nmain#clickShareSocial\">line\n\nmain#clickShareSocial\">snapchat\n\n※この記事は外部のニュースメディアから自動取得・整理されたものです。詳細な導入店舗数、投資対効果（ROI）、検証数値、売場画像などの全文は、以下の「元の記事を読む」ボタンから掲載元ソース of サイトにアクセスしてご確認ください。",
+        "summary": "data-main-id-param=\"button-top\"\n\naria-controls=\"top-share-social-list\"\n\nmain#clickOutsideShareSocial\"\n\nmain#clickShareSocial\">email\n\nmain#clickShareSo..."
       }
     ]
   }
